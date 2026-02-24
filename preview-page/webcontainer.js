@@ -1,6 +1,5 @@
 // preview-page/webcontainer.js
-import WebContainerAPI from '@webcontainer/api';
-const { WebContainer, auth } = WebContainerAPI; // Now safely destructured
+// No static import – we'll use dynamic import for better error handling
 
 // Your WebContainer client ID
 const CLIENT_ID = 'wc_api_tedcharles111_bd5f206360ac8bf1d9000f48ff00949b';
@@ -14,10 +13,8 @@ const fallbackEl = document.getElementById('fallback');
 
 /**
  * Ensure essential files exist for React/HTML projects.
- * This mimics the auto‑injection we had in the SDK version.
  */
 function ensureEssentialFiles(files) {
-  // If it's a React project (detected by presence of package.json with react dependency)
   let isReact = false;
   if (files['package.json']) {
     try {
@@ -26,7 +23,6 @@ function ensureEssentialFiles(files) {
     } catch (e) {}
   }
 
-  // For React, ensure public/index.html and src/index.js exist
   if (isReact) {
     if (!files['public/index.html']) {
       files['public/index.html'] = `<!DOCTYPE html>
@@ -71,7 +67,6 @@ root.render(
     }
   }
 
-  // For simple HTML projects, ensure index.html exists
   if (!isReact && !files['index.html']) {
     files['index.html'] = '<h1>Hello World</h1>';
   }
@@ -80,11 +75,18 @@ root.render(
 }
 
 async function startWebContainer(rawFiles) {
-  // First, ensure essential files are present
-  const files = ensureEssentialFiles({ ...rawFiles }); // copy to avoid mutating original
+  const files = ensureEssentialFiles({ ...rawFiles });
 
   try {
-    // Initialize WebContainer authentication
+    // Dynamically import the WebContainer module
+    const module = await import('https://cdn.jsdelivr.net/npm/@webcontainer/api@1.1.9/+esm');
+    
+    // Extract named exports – adjust based on actual module shape
+    const { WebContainer, auth } = module;
+    if (!WebContainer || !auth) {
+      throw new Error('WebContainer module does not provide expected exports');
+    }
+
     await auth.init({ clientId: CLIENT_ID, scope: '' });
 
     loadingEl.innerText = '⏳ Booting WebContainer...';
@@ -93,7 +95,6 @@ async function startWebContainer(rawFiles) {
     loadingEl.innerText = '⏳ Writing files...';
     await webcontainer.mount(files);
 
-    // Detect start command
     let startCmd = 'npm run dev';
     if (files['package.json']) {
       try {
@@ -123,7 +124,7 @@ async function startWebContainer(rawFiles) {
 
   } catch (error) {
     console.error('WebContainer failed:', error);
-    fallbackToStackBlitz(files); // pass the augmented files
+    fallbackToStackBlitz(files);
   }
 }
 
@@ -132,17 +133,14 @@ function fallbackToStackBlitz(files) {
   fallbackEl.style.display = 'block';
   fallbackEl.innerHTML = '⚠️ WebContainer not available – using StackBlitz fallback.';
 
-  // Create a div for StackBlitz
   const sbDiv = document.createElement('div');
   sbDiv.id = 'stackblitz-container';
   sbDiv.style.height = '100%';
   document.getElementById('container').appendChild(sbDiv);
 
-  // Load StackBlitz SDK dynamically
   const script = document.createElement('script');
   script.src = 'https://unpkg.com/@stackblitz/sdk/bundles/sdk.umd.js';
   script.onload = () => {
-    // Use the same augmented files
     const project = {
       files: files,
       title: 'Preview',
@@ -172,7 +170,6 @@ function detectTemplate(files) {
   return 'node';
 }
 
-// Fetch files from API
 async function fetchFiles() {
   try {
     const res = await fetch(`/api/sessions/${sessionId}/files`);
