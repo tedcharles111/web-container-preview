@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const path = require('path'); // 👈 added for proper path handling
+const path = require('path');
 const { createSession, getSession } = require('./store');
 
 const app = express();
@@ -9,32 +9,42 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
 // 1. Create a new preview session
-app.post('/api/sessions', (req, res) => {
-  const { files } = req.body;
-  if (!files || typeof files !== 'object') {
-    return res.status(400).json({ error: 'Missing or invalid files' });
+app.post('/api/sessions', async (req, res) => {
+  try {
+    const { files } = req.body;
+    if (!files || typeof files !== 'object') {
+      return res.status(400).json({ error: 'Missing or invalid files' });
+    }
+    const sessionId = createSession(files);
+    res.json({ sessionId, previewUrl: `/preview/${sessionId}` });
+  } catch (error) {
+    console.error('🔥 Error in POST /api/sessions:', error.stack);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  const sessionId = createSession(files);
-  res.json({ sessionId, previewUrl: `/preview/${sessionId}` });
 });
 
-// 2. Get files for a session (used by the preview iframe)
+// 2. Get files for a session
 app.get('/api/sessions/:sessionId/files', (req, res) => {
-  const session = getSession(req.params.sessionId);
-  if (!session) return res.status(404).json({ error: 'Session not found' });
-  res.json(session.files);
+  try {
+    const session = getSession(req.params.sessionId);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    res.json(session.files);
+  } catch (error) {
+    console.error('🔥 Error in GET /api/sessions/:sessionId/files:', error.stack);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // 3. Serve static files from preview-page
 const previewDir = path.join(__dirname, '../preview-page');
 app.use('/preview', express.static(previewDir));
 
-// 4. 👇 For any unmatched /preview/* route, serve index.html (so the frontend can handle routing)
+// 4. Catch-all for /preview/* routes
 app.get('/preview/*', (req, res) => {
   res.sendFile(path.join(previewDir, 'index.html'));
 });
 
-// 5. 👇 Add a friendly root route (so you don't see "Cannot GET /")
+// 5. Root route
 app.get('/', (req, res) => {
   res.send(`
     <h1>Preview Engine API</h1>
@@ -43,7 +53,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Optional: health check
+// Health check
 app.get('/health', (req, res) => res.send('OK'));
 
 const PORT = process.env.PORT || 3000;
