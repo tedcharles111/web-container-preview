@@ -1,5 +1,6 @@
 // preview-page/webcontainer.js
-import { WebContainer, auth } from '@webcontainer/api';
+import * as WebContainerAPI from '@webcontainer/api';
+const { WebContainer, auth } = WebContainerAPI;
 
 // Your WebContainer client ID (provided by user)
 const CLIENT_ID = 'wc_api_tedcharles111_bd5f206360ac8bf1d9000f48ff00949b';
