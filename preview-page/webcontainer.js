@@ -1,5 +1,5 @@
-import { WebContainer } from '@webcontainer/api';
-import { auth } from '@webcontainer/api';
+// preview-page/webcontainer.js
+import { WebContainer, auth } from '@webcontainer/api';
 
 // Your WebContainer client ID (provided by user)
 const CLIENT_ID = 'wc_api_tedcharles111_bd5f206360ac8bf1d9000f48ff00949b';
@@ -65,11 +65,6 @@ function fallbackToStackBlitz(files) {
   fallbackEl.style.display = 'block';
   fallbackEl.innerHTML = '⚠️ WebContainer not available – using StackBlitz fallback.';
 
-  // Build a StackBlitz embed URL (using SDK if possible, but here we just redirect)
-  // We'll create a temporary project via the SDK? But simpler: redirect to a StackBlitz editor with the files.
-  // However, we can't easily create a project without SDK. So we use SDK embedProject within this iframe.
-  // Since we are already in an iframe, we need to load the StackBlitz SDK and embed into a new div.
-
   // Create a div for StackBlitz
   const sbDiv = document.createElement('div');
   sbDiv.id = 'stackblitz-container';
@@ -103,11 +98,11 @@ function detectTemplate(files) {
       const pkg = JSON.parse(files['package.json']);
       if (pkg.dependencies?.react) return 'create-react-app';
       if (pkg.dependencies?.vue) return 'vue';
-      if (pkg.dependencies?.next) return 'node'; // Next.js works in node template
+      if (pkg.dependencies?.next) return 'node';
     } catch (e) {}
   }
   if (files['index.html']) return 'html';
-  return 'node'; // default
+  return 'node';
 }
 
 // Fetch files from API
