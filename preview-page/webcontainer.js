@@ -173,7 +173,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 )`;
       files[entryFile] = entryContent;
     } else {
-      // If entry file already exists but CSS is not imported, we could modify it – but we'll leave as is.
+      // If entry file already exists but does not import CSS, you could modify it – but we leave it as is.
     }
   } else if (projectType === 'cra') {
     const entryFile = 'src/index.tsx';
