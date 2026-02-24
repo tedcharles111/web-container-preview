@@ -150,35 +150,53 @@ function prepareProjectForStackBlitz(rawFiles) {
     }
   }
 
-  // Ensure entry file exists
+  // Ensure entry file exists and import CSS if present
   if (projectType === 'vite') {
     const entryFile = 'src/main.tsx';
     if (!files[entryFile]) {
-      files[entryFile] = `import React from 'react'
+      let entryContent = `import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+`;
 
+      // Auto‑import index.css if it exists
+      if (files['src/index.css']) {
+        entryContent = `import './index.css';\n` + entryContent;
+      }
+
+      entryContent += `
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
     <App />
   </BrowserRouter>
 )`;
+      files[entryFile] = entryContent;
+    } else {
+      // If entry file already exists but CSS is not imported, we could modify it – but we'll leave as is.
     }
   } else if (projectType === 'cra') {
     const entryFile = 'src/index.tsx';
     if (!files[entryFile] && !files['src/index.js']) {
-      files['src/index.tsx'] = `import React from 'react';
+      let entryContent = `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+`;
 
+      // Auto‑import index.css if it exists
+      if (files['src/index.css']) {
+        entryContent = `import './index.css';\n` + entryContent;
+      }
+
+      entryContent += `
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 root.render(
   <BrowserRouter>
     <App />
   </BrowserRouter>
 );`;
+      files['src/index.tsx'] = entryContent;
     }
   }
 
