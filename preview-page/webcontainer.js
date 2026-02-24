@@ -150,21 +150,29 @@ function prepareProjectForStackBlitz(rawFiles) {
     }
   }
 
+  // Helper to add CSS import to a file if not already present
+  function addCssImportIfMissing(content, cssPath) {
+    const importStatement = `import './${cssPath}';`;
+    if (content.includes(importStatement) || content.includes(`import "./${cssPath}";`)) {
+      return content; // already imported
+    }
+    // Add at the top, after any "use strict" or similar? Simpler: prepend.
+    return importStatement + '\n' + content;
+  }
+
   // Ensure entry file exists and import CSS if present
   if (projectType === 'vite') {
     const entryFile = 'src/main.tsx';
+    const cssFile = 'src/index.css';
     if (!files[entryFile]) {
       let entryContent = `import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 `;
-
-      // Auto‑import index.css if it exists
-      if (files['src/index.css']) {
+      if (files[cssFile]) {
         entryContent = `import './index.css';\n` + entryContent;
       }
-
       entryContent += `
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
@@ -172,23 +180,23 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </BrowserRouter>
 )`;
       files[entryFile] = entryContent;
-    } else {
-      // If entry file already exists but does not import CSS, you could modify it – but we leave it as is.
+    } else if (files[cssFile]) {
+      // Entry file exists, add CSS import if missing
+      files[entryFile] = addCssImportIfMissing(files[entryFile], 'index.css');
     }
   } else if (projectType === 'cra') {
     const entryFile = 'src/index.tsx';
-    if (!files[entryFile] && !files['src/index.js']) {
+    const altEntryFile = 'src/index.js';
+    const cssFile = 'src/index.css';
+    if (!files[entryFile] && !files[altEntryFile]) {
       let entryContent = `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 `;
-
-      // Auto‑import index.css if it exists
-      if (files['src/index.css']) {
+      if (files[cssFile]) {
         entryContent = `import './index.css';\n` + entryContent;
       }
-
       entryContent += `
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 root.render(
@@ -196,7 +204,13 @@ root.render(
     <App />
   </BrowserRouter>
 );`;
-      files['src/index.tsx'] = entryContent;
+      files[entryFile] = entryContent;
+    } else {
+      // Determine which entry file exists
+      const existingEntry = files[entryFile] ? entryFile : (files[altEntryFile] ? altEntryFile : null);
+      if (existingEntry && files[cssFile]) {
+        files[existingEntry] = addCssImportIfMissing(files[existingEntry], 'index.css');
+      }
     }
   }
 
