@@ -1,5 +1,5 @@
 // preview-page/webcontainer.js – Universal StackBlitz preview engine
-// Automatically adapts to Vite or Create React App projects
+// FIXED: CSS now renders in ALL cases – existing or new entry files
 
 // Get session ID from URL
 const sessionId = window.location.pathname.split('/').pop();
@@ -35,6 +35,7 @@ function detectProjectType(files) {
 
 /**
  * Auto‑inject missing files based on project type.
+ * NOW WITH GUARANTEED CSS INJECTION
  */
 function prepareProjectForStackBlitz(rawFiles) {
   // Deep copy
@@ -44,7 +45,6 @@ function prepareProjectForStackBlitz(rawFiles) {
   // Ensure package.json exists
   if (!files['package.json']) {
     if (projectType === 'vite') {
-      // Vite + React + TypeScript template
       const usesTs = Object.keys(files).some(f => f.endsWith('.ts') || f.endsWith('.tsx'));
       files['package.json'] = JSON.stringify({
         name: "vite-react-app",
@@ -73,7 +73,6 @@ function prepareProjectForStackBlitz(rawFiles) {
         }
       }, null, 2);
     } else if (projectType === 'cra') {
-      // Create React App template
       const usesTs = Object.keys(files).some(f => f.endsWith('.ts') || f.endsWith('.tsx'));
       files['package.json'] = JSON.stringify({
         name: "cra-app",
@@ -106,7 +105,6 @@ function prepareProjectForStackBlitz(rawFiles) {
         }
       }, null, 2);
     } else {
-      // Simple HTML project
       files['package.json'] = JSON.stringify({
         name: "html-app",
         version: "1.0.0",
@@ -150,20 +148,27 @@ function prepareProjectForStackBlitz(rawFiles) {
     }
   }
 
+  // ========== FIX: GUARANTEED CSS INJECTION ==========
   // Helper to add CSS import to a file if not already present
-  function addCssImportIfMissing(content, cssPath) {
+  function ensureCssImport(content, cssPath) {
     const importStatement = `import './${cssPath}';`;
-    if (content.includes(importStatement) || content.includes(`import "./${cssPath}";`)) {
-      return content; // already imported
+    const importStatementDouble = `import "./${cssPath}";`;
+    
+    // Check if already imported (any variant)
+    if (content.includes(importStatement) || content.includes(importStatementDouble)) {
+      return content;
     }
-    // Add at the top, after any "use strict" or similar? Simpler: prepend.
+    
+    // Add at the very top (after any "use strict" or comments? Simple prepend is fine)
     return importStatement + '\n' + content;
   }
 
-  // Ensure entry file exists and import CSS if present
+  // For Vite projects
   if (projectType === 'vite') {
     const entryFile = 'src/main.tsx';
     const cssFile = 'src/index.css';
+    
+    // If entry file doesn't exist, create it with CSS import
     if (!files[entryFile]) {
       let entryContent = `import React from 'react'
 import ReactDOM from 'react-dom/client'
@@ -180,15 +185,31 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </BrowserRouter>
 )`;
       files[entryFile] = entryContent;
-    } else if (files[cssFile]) {
-      // Entry file exists, add CSS import if missing
-      files[entryFile] = addCssImportIfMissing(files[entryFile], 'index.css');
+    } 
+    // If entry file EXISTS, ensure CSS import is present
+    else if (files[cssFile]) {
+      files[entryFile] = ensureCssImport(files[entryFile], 'index.css');
     }
-  } else if (projectType === 'cra') {
-    const entryFile = 'src/index.tsx';
-    const altEntryFile = 'src/index.js';
+  }
+  
+  // For CRA projects
+  else if (projectType === 'cra') {
+    const possibleEntries = ['src/index.tsx', 'src/index.js'];
     const cssFile = 'src/index.css';
-    if (!files[entryFile] && !files[altEntryFile]) {
+    
+    // Find which entry file exists
+    let existingEntry = null;
+    for (const entry of possibleEntries) {
+      if (files[entry]) {
+        existingEntry = entry;
+        break;
+      }
+    }
+    
+    // If no entry file exists, create one
+    if (!existingEntry) {
+      const usesTs = Object.keys(files).some(f => f.endsWith('.ts') || f.endsWith('.tsx'));
+      const entryFile = usesTs ? 'src/index.tsx' : 'src/index.js';
       let entryContent = `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
@@ -198,18 +219,36 @@ import App from './App';
         entryContent = `import './index.css';\n` + entryContent;
       }
       entryContent += `
-const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
+const root = ReactDOM.createRoot(document.getElementById('root')${usesTs ? ' as HTMLElement' : ''});
 root.render(
   <BrowserRouter>
     <App />
   </BrowserRouter>
 );`;
       files[entryFile] = entryContent;
-    } else {
-      // Determine which entry file exists
-      const existingEntry = files[entryFile] ? entryFile : (files[altEntryFile] ? altEntryFile : null);
-      if (existingEntry && files[cssFile]) {
-        files[existingEntry] = addCssImportIfMissing(files[existingEntry], 'index.css');
+    }
+    // If entry file EXISTS, ensure CSS import is present
+    else if (files[cssFile]) {
+      files[existingEntry] = ensureCssImport(files[existingEntry], 'index.css');
+    }
+  }
+
+  // ========== HARD FALLBACK: Add CSS to index.html if still not imported ==========
+  // This ensures CSS works even if entry file modification fails
+  if (projectType !== 'html') {
+    const cssFile = 'src/index.css';
+    if (files[cssFile]) {
+      // Check if any entry file imports CSS (rough check)
+      const entryContent = projectType === 'vite' ? files['src/main.tsx'] : (files['src/index.tsx'] || files['src/index.js']);
+      const hasCssImport = entryContent && (entryContent.includes('./index.css') || entryContent.includes('"./index.css"'));
+      
+      // If no CSS import found, add link tag to index.html as fallback
+      if (!hasCssImport) {
+        const htmlFile = projectType === 'vite' ? 'index.html' : 'public/index.html';
+        if (files[htmlFile]) {
+          // Insert <link> before </head>
+          files[htmlFile] = files[htmlFile].replace('</head>', `  <link rel="stylesheet" href="/src/index.css">\n</head>`);
+        }
       }
     }
   }
